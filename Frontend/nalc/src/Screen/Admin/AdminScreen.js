@@ -56,19 +56,24 @@ const AdminScreen = () => {
     formData.append('file', file);
 
     try {
-      const response = await fetch('https://nalc-backend-ebe218d27802.herokuapp.com/upload-and-replace-data/', {
-        method: 'POST',
-        body: formData,
-      });
+        const response = await fetch('http://localhost:8000/upload-and-replace-data/', {
+            method: 'POST',
+            body: formData,
+        });
 
-      if (response.ok) {
-        alert("Added Data");
-      } else {
-        alert("Failed to add Data");
-      }
-    }
-    catch (error) {
-      console.error("Error: ", error);
+        if (response.status === 200) {
+            const data = await response.json(); // Parse JSON response
+            if ('progress' in data) {
+                console.log(`Progress: ${data.progress}%`);
+            } else if ('message' in data) {
+                alert(data.message); // Show success message
+            }
+        } else {
+            const errorData = await response.json(); // Parse JSON error response
+            alert(`Failed to add Data: ${errorData.error}`); // Show error message
+        }
+    } catch (error) {
+        console.error("Error: ", error);
     }
   };
 
