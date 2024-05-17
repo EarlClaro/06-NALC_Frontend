@@ -1,4 +1,4 @@
-import React , {useState} from 'react';
+import React , {useState, useEffect } from 'react';
 import axios from 'axios';
 import {useNavigate} from 'react-router-dom';
 import { lineWobble } from 'ldrs';
@@ -12,6 +12,14 @@ function Login() {
   const navigate = useNavigate();
   const [forgetPwdEmail, setForgetPwdEmail] = useState("");
   const [loginLoading , setLoginLoading] = useState(false);
+  
+  useEffect(() => {
+    const authToken = localStorage.getItem('authToken');
+    if (authToken) {
+      // Redirect the user to the appropriate page based on their role
+      navigate('/home'); // Change '/home' to the appropriate URL
+    }
+  }, []);
 
   const handleLogin = async () => {
     try {
@@ -23,10 +31,13 @@ function Login() {
       if (response.status >= 200 && response.status < 300) {
         // Save auth token
         const authToken = response.data.access_token;
-
+  
         // Add the token to the headers for subsequent requests
         localStorage.setItem('authToken', authToken);
-
+  
+        // Show JWT token in alert
+        //alert('Logged in successfully! JWT Token: ' + authToken);
+        alert('Logged in successfully!');
         // Check if the user is a superuser
         if (response.data.is_superuser) {
           navigate('/admin'); // Redirect to the admin page if the user is a superuser
@@ -43,6 +54,7 @@ function Login() {
       setLoginLoading(false);
     }
   };
+  
 
   const handleRegister = () => {
     window.location.href = '/register';
@@ -62,7 +74,7 @@ function Login() {
 
   const handleForgetPwd = async () => {
     try {
-      const response = await axios.post('https://nalc-backend-ebe218d27802.herokuapp.com/api/reset-password/', {
+      const response = await axios.post('http://localhost:8000/api/reset-password/', {
         email: forgetPwdEmail,
       });
     

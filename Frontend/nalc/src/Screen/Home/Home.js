@@ -294,12 +294,26 @@ function Home() {
           setInput('');
         }
       } catch (error) {
-        // Handle error
-        alert("Something Went Wrong, Try Again!");
-        console.log(error);
-      } finally {
+        if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            const { status, data } = error.response;
+                if (status === 404) {
+                    alert("Thread not found. Please try again.");
+                } else {
+                    alert(`Server error: ${status}. ${data.message || 'Please try again later.'}`);
+                }
+        } else if (error.request) {
+            // The request was made but no response was received
+            alert("Network error. Please check your internet connection and try again.");
+        } else {
+            // Something happened in setting up the request that triggered an Error
+            alert("An unexpected error occurred. Please try again.");
+        }
+        console.error(error);
+    } finally {
         setmsgloading(false);
-      }
+    }
     }
   };
     
