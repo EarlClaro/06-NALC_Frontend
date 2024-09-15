@@ -1,67 +1,85 @@
 /* eslint-disable jsx-a11y/no-redundant-roles */
-import React , {useState , useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './Home.css';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPaperPlane , faRobot , faUser, faPen, faCheck, faTrash} from '@fortawesome/free-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPaperPlane, faRobot, faUser, faPen, faCheck, faTrash } from '@fortawesome/free-solid-svg-icons';
 import UserOption from '../../Components/UserOption';
 import HomePage from '../../Components/HomePage';
 import { useNavigate } from 'react-router-dom';
-import { ripples , dotWave , quantum } from 'ldrs';
+import { ripples, dotWave, quantum } from 'ldrs';
 
 function Home() {
-    ripples.register();
-    dotWave.register();
-    quantum.register()
+  ripples.register();
+  dotWave.register();
+  quantum.register();
 
-    const [input, setInput] = useState('');
-    const [chatName , setChatName] = useState('');    
-    const [chats , setChats] = useState([]);
-    const [threadId , setThreadId] = useState(0);
-    const [chatMsg , setChatMsg] = useState([]);
-    const reversedChats = chats.slice().reverse();
-    const [editModes, setEditModes] = useState(Array(reversedChats.length).fill(false));
-    const [tempName, setTempName] = useState('');
-    const [selectedThread, setSelectedThread] = useState('');
-    const [msgloading, setmsgloading] = useState(false);
-    const [chatCreated, setChatCreated] = useState(false);
-    const [userData , setUserData] = useState([]);
-    const [showHome , setShowHome] = useState(true);
-    const navigate = useNavigate();
-    const [threadLoading , setThreadLoading] = useState(false);
-    const [convoLoading , setConvoLoading] = useState(false);
-    const [selectedButtonIndex, setSelectedButtonIndex] = useState(null);
+  const [input, setInput] = useState('');
+  const [chatName, setChatName] = useState('');
+  const [chats, setChats] = useState([]);
+  const [threadId, setThreadId] = useState(0);
+  const [chatMsg, setChatMsg] = useState([]);
+  const reversedChats = chats.slice().reverse();
+  const [editModes, setEditModes] = useState(Array(reversedChats.length).fill(false));
+  const [tempName, setTempName] = useState('');
+  const [selectedThread, setSelectedThread] = useState('');
+  const [msgloading, setmsgloading] = useState(false);
+  const [chatCreated, setChatCreated] = useState(false);
+  const [userData, setUserData] = useState([]);
+  const [showHome, setShowHome] = useState(true);
+  const navigate = useNavigate();
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [convoLoading, setConvoLoading] = useState(false);
+  const [selectedButtonIndex, setSelectedButtonIndex] = useState(null);
 
-  // Set the initial token and headers
-  axios.defaults.headers.common['Authorization'] = `Bearer ${localStorage.getItem('authToken')}`;
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    
+    // Ensure the token is added to the Axios headers
+    if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+        console.error('No token found');
+    }
 
-  // Set the session timeout duration (30 minutes in milliseconds)
-  const sessionTimeoutDuration = 30 * 60 * 1000; // 30 minutes in milliseconds
+    // Now fetch user data and chats
+    const fetchData = async () => {
+        try {
+            await fetchUserData();
+            await fetchChats();
+        } catch (error) {
+            console.error('Error fetching initial data:', error);
+        }
+    };
 
-  // Function to redirect the user to the login page
-  const redirectToLogin = () => {
-    window.location.href = '/';
-  };
-
-  // Function to reset the session timeout
-  const resetSessionTimeout = () => {
-    clearTimeout(sessionTimeout);
-    sessionTimeout = setTimeout(redirectToLogin, sessionTimeoutDuration);
-  };
-
-  // Set the initial session timeout
-  let sessionTimeout = setTimeout(redirectToLogin, sessionTimeoutDuration);
-
-  // Attach an event listener to reset the session timeout on user activity
-  document.addEventListener('mousemove', resetSessionTimeout);
-  document.addEventListener('keydown', resetSessionTimeout);
-
+    fetchData();
+}, []);
+  
+  // Set up Axios defaults
+  axios.defaults.baseURL = 'http://localhost:8000/';
+  if (token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+  
+  // Handle unauthorized errors and session timeout
   axios.interceptors.response.use(
-    (response) => {
-      resetSessionTimeout();
-      return response;
-    },
-    (error) => {
+    response => response,
+    error => {
+      if (error.response && error.response.status === 401) {
+        redirectToLogin();  // Redirect to login if token is invalid
+      }
+      return Promise.reject(error);
+    }
+  );
+
+  // Handle unauthorized errors and session timeout
+  axios.interceptors.response.use(
+    response => response,
+    error => {
       if (error.response && error.response.status === 401) {
         redirectToLogin();
       }
@@ -69,86 +87,110 @@ function Home() {
     }
   );
 
+  const sessionTimeoutDuration = 30 * 60 * 1000; // 30 minutes in milliseconds
+  let sessionTimeout;
+
+  const redirectToLogin = () => {
+    window.location.href = '/';
+  };
+
+  const resetSessionTimeout = () => {
+    clearTimeout(sessionTimeout);
+    sessionTimeout = setTimeout(redirectToLogin, sessionTimeoutDuration);
+  };
+
+  useEffect(() => {
+    resetSessionTimeout();
+    document.addEventListener('mousemove', resetSessionTimeout);
+    document.addEventListener('keydown', resetSessionTimeout);
+
+    return () => {
+      document.removeEventListener('mousemove', resetSessionTimeout);
+      document.removeEventListener('keydown', resetSessionTimeout);
+    };
+  }, []);
+
   const handleLogout = () => {
     localStorage.removeItem('authToken');
-  
     redirectToLogin();
   };
 
-    const handleInputChange = (identifier) => (e) => {
-      if (identifier === "input") {
-        setInput(e.target.value);
-      } else if (identifier === "chat") {
-        setChatName(e.target.value);
-      }
-  };
-
-  const fetchUserData = async () => {
-      try{
-        const response = await axios.get('http://localhost:8000/api/users/details/');
-        setUserData(response.data);
-      } catch(error){
-        console.error(error);
-      }
-  }
-
-  const fetchChatsAndData = async (id) => {
-    try {
-      const responseChats = await axios.get('http://localhost:8000/api/users/threads/');
-      setChats(responseChats.data);
-  
-      if (id !== undefined) {
-        fetchDataAndMsg(id);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    }finally{
-      setThreadLoading(false); 
+  const handleInputChange = (identifier) => (e) => {
+    if (identifier === "input") {
+      setInput(e.target.value);
+    } else if (identifier === "chat") {
+      setChatName(e.target.value);
     }
   };
+
+  // Example for fetching user data
+const fetchUserData = async () => {
+  try {
+    const response = await axios.get('http://localhost:8000/api/users/details/', {
+      headers: {
+        'Authorization': `Bearer ${token}` // Include the token in the request headers
+      }
+    });
+    setUserData(response.data);
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+  }
+};
+
+// Example for fetching threads
+const fetchChatsAndData = async () => {
+  try {
+    const response = await axios.get('http://localhost:8000/api/users/threads/', {
+      headers: {
+        'Authorization': `Bearer ${token}` // Include the token in the request headers
+      }
+    });
+    setChats(response.data);
+  } catch (error) {
+    console.error('Error fetching chats:', error);
+  }
+};
 
   const fetchChats = async () => {
     await fetchChatsAndData();
   };
 
-
   const fetchDataAndMsg = async (id) => {
     try {
-      const responseThread = await axios.get(`http://localhost:8000/api/threads/${id}/`);
-      const responseMsg = await axios.get(`http://localhost:8000/api/messages/thread/${id}/`);
-  
+      const responseThread = await axios.get(`api/threads/${id}/`);
+      const responseMsg = await axios.get(`api/messages/thread/${id}/`);
+
       const messages = responseMsg.data.map(message => {
         const messageText = JSON.parse(message.message_text);
         const user = messageText.query;
         let text = messageText.response.replace(/\n/g, '<br>');
-  
+
         return {
           user,
           text,
         };
       });
-  
+
       setChatMsg(messages);
       setSelectedThread(responseThread.data.thread_name);
       setThreadId(id);
     } catch (error) {
-      console.error(error);
-    } finally{
+      console.error('Error fetching thread data and messages:', error);
+    } finally {
       setConvoLoading(false);
       setShowHome(false);
     }
   };
-  
 
   const fetchData = async (id) => {
     try {
-      if(reversedChats.length == 0){
+      if (reversedChats.length === 0) {
         setThreadLoading(true);
       }
-      const response = await axios.get(`http://localhost:8000/api/threads/${id}/`);
+      const response = await axios.get(`api/threads/${id}/`);
       fetchDataAndMsg(id);
     } catch (error) {
-      console.error(error);
+      console.error('Error fetching thread data:', error);
     }
   };
 
@@ -157,27 +199,25 @@ function Home() {
       setThreadLoading(true);
       const nameToUse = chatName !== '' ? chatName : name;
       setChatName(nameToUse);
-      const response = await axios.post('http://localhost:8000/api/threads/', {
+      const response = await axios.post('api/threads/', {
         thread_name: nameToUse,
       });
-  
+
       const newThreadId = response.data.data.thread_id;
-  
-      // Perform any necessary state updates or additional actions here
+
       setChatName('');
       setThreadId(newThreadId);
       setChatCreated(true);
-  
-      // Fetch data and handle chat as needed
+
       fetchChats();
       fetchData(newThreadId);
       handleChat(newThreadId);
-  
+
       return newThreadId;
     } catch (error) {
       alert("Something Went Wrong, Try Again!");
-      console.error('Error:', error);
-      throw error; // Rethrow the error to be caught by the caller
+      console.error('Error creating chat:', error);
+      throw error;
     }
   };
 
@@ -189,16 +229,16 @@ function Home() {
       setConvoLoading(true);
       fetchData(id);
     } catch (error) {
-      console.error(error);
+      console.error('Error handling chat:', error);
     }
   };
 
   const handleEditChat = async (id, index) => {
     try {
-      await axios.put(`http://localhost:8000/api/threads/${id}/`, {
+      await axios.put(`api/threads/${id}/`, {
         thread_name: tempName,
       });
-  
+
       setTempName('');
       const newEditModes = [...editModes];
       newEditModes[index] = false;
@@ -206,52 +246,51 @@ function Home() {
       fetchDataAndMsg(id);
       fetchChats();
     } catch (error) {
-      console.error(error);
+      console.error('Error editing chat:', error);
     }
   };
 
   const handleDeleteAll = () => {
     try {
-      axios.delete('http://localhost:8000/api/threads/delete-all/')
+      axios.delete('api/threads/delete-all/')
         .then(() => {
-          // Once the delete request is successful, fetch new data and update the state
           fetchChats();
           setChatMsg([]);
           setShowHome(true);
           setSelectedThread("");
         })
         .catch(error => {
-          console.error(error);
+          console.error('Error deleting all chats:', error);
         });
     } catch (error) {
-      console.error(error);
+      console.error('Error deleting all chats:', error);
     }
   };
+
   const handleDeleteChat = async (id) => {
     try {
-      const response = await axios.delete(`http://localhost:8000/api/threads/${id}/`);
-      fetchChats();     
+      await axios.delete(`api/threads/${id}/`);
+      fetchChats();
       setChatMsg([]);
       setShowHome(true);
       setSelectedThread("");
     } catch (error) {
-      console.error(error);
+      console.error('Error deleting chat:', error);
     }
-  }
+  };
 
   const toggleEditMode = (index, threadName) => {
-    // Create a copy of the editModes array and toggle the edit mode for the specific item
     const newEditModes = [...editModes];
     newEditModes[index] = !newEditModes[index];
-  
     setTempName(threadName);
     setEditModes(newEditModes);
   };
-  
-  
-  useEffect(() => {  
+
+  useEffect(() => {
+    if (threadId) {
       fetchData(threadId);
-  }, []);
+    }
+  }, [threadId]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -259,61 +298,52 @@ function Home() {
         await fetchUserData();
         await fetchChats();
       } catch (error) {
-        console.error(error);
+        console.error('Error fetching initial data:', error);
       }
     };
     fetchData();
-  }, []); 
-  
+  }, []);
 
   const handleSendMessage = async () => {
     if (input.trim() === '') {
       // Display error or handle accordingly
     } else {
       setmsgloading(true);
-  
+
       try {
         let currentThreadId;
-  
-        // Create a new Chat when no Chat is selected
+
         if (!chatCreated) {
-          // Wait for the chat creation and get the chatId
           currentThreadId = await handleCreateChat("New Chat");
         } else {
           currentThreadId = threadId;
         }
-  
+
         if (currentThreadId !== 0) {
-          // Send the message
-          await axios.post('http://localhost:8000/api/messages/create/', {
+          await axios.post('api/messages/create/', {
             thread_id: currentThreadId,
             query: input,
           });
-          // Fetch data and messages after sending the message
           await fetchDataAndMsg(currentThreadId);
           setInput('');
         }
       } catch (error) {
         if (error.response) {
-            // The request was made and the server responded with a status code
-            // that falls out of the range of 2xx
-            const { status, data } = error.response;
-                if (status === 404) {
-                    alert("Thread not found. Please try again.");
-                } else {
-                    alert(`Server error: ${status}. ${data.message || 'Please try again later.'}`);
-                }
-        } else if (error.request) {
-            // The request was made but no response was received
-            alert("Network error. Please check your internet connection and try again.");
-        } else {
-            // Something happened in setting up the request that triggered an Error
+          const { status, data } = error.response;
+          if (status === 404) {
+            alert("Thread not found. Creating a new thread.");
+            await handleCreateChat("New Chat");
+          } else if (status === 500) {
+            alert("Server error. Please try again later.");
+          } else {
             alert("An unexpected error occurred. Please try again.");
+          }
+        } else {
+          alert("An unexpected error occurred. Please try again.");
         }
-        console.error(error);
-    } finally {
+      } finally {
         setmsgloading(false);
-    }
+      }
     }
   };
     
